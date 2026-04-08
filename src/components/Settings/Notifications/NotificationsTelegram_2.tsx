@@ -66,10 +66,10 @@ const NotificationsTelegram_2 = () => {
           .required(intl.formatMessage(messages.validationChatIdRequired)),
         otherwise: Yup.string().nullable(),
       })
-      .matches(
-        /^-?\d+$/,
-        intl.formatMessage(messages.validationChatIdRequired)
-      ),
+      .matches(/^-?\d+$/, {
+        message: intl.formatMessage(messages.validationChatIdRequired),
+        excludeEmptyString: true,
+      }),
     messageThreadId: Yup.string()
       .when(['types'], {
         is: (enabled: boolean, types: number) => enabled && !!types,
@@ -78,7 +78,10 @@ const NotificationsTelegram_2 = () => {
           .required(intl.formatMessage(messages.validationMessageThreadId)),
         otherwise: Yup.string().nullable(),
       })
-      .matches(/^\d+$/, intl.formatMessage(messages.validationMessageThreadId)),
+      .matches(/^\d+$/, {
+        message: intl.formatMessage(messages.validationMessageThreadId),
+        excludeEmptyString: true,
+      }),
   });
 
   if (!data && !error) {
