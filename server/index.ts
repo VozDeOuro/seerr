@@ -15,6 +15,7 @@ import PushbulletAgent from '@server/lib/notifications/agents/pushbullet';
 import PushoverAgent from '@server/lib/notifications/agents/pushover';
 import SlackAgent from '@server/lib/notifications/agents/slack';
 import TelegramAgent from '@server/lib/notifications/agents/telegram';
+import Telegram_2Agent from '@server/lib/notifications/agents/telegram_2';
 import WebhookAgent from '@server/lib/notifications/agents/webhook';
 import WebPushAgent from '@server/lib/notifications/agents/webpush';
 import checkOverseerrMerge from '@server/lib/overseerrMerge';
@@ -138,6 +139,7 @@ app
       new PushoverAgent(),
       new SlackAgent(),
       new TelegramAgent(),
+      new Telegram_2Agent(),
       new WebhookAgent(),
       new WebPushAgent(),
     ]);
