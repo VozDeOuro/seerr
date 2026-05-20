@@ -21,6 +21,7 @@ import type {
   MediaRequestBody,
   RequestResultsResponse,
 } from '@server/interfaces/api/requestInterfaces';
+import { autoRetriedIds } from '@server/lib/failedRequestRetry';
 import { Permission } from '@server/lib/permissions';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
@@ -645,6 +646,8 @@ requestRoutes.post<{
       });
 
       // this also triggers updating the parent media's status & sending to *arr
+      // pre-mark as retried so the subscriber always notifies on failure after a manual retry
+      autoRetriedIds.add(request.id);
       request.status = MediaRequestStatus.APPROVED;
       request.modifiedBy = req.user;
       await requestRepository.save(request);

@@ -79,3 +79,6 @@ config/cache
 
 # Docker compose
 compose.override.yaml
+
+# Local scripts
+sync-upstream.sh

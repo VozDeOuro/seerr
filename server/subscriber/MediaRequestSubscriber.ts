@@ -17,6 +17,7 @@ import Media from '@server/entity/Media';
 import { MediaRequest } from '@server/entity/MediaRequest';
 import Season from '@server/entity/Season';
 import SeasonRequest from '@server/entity/SeasonRequest';
+import { autoRetriedIds } from '@server/lib/failedRequestRetry';
 import notificationManager, { Notification } from '@server/lib/notifications';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
@@ -396,39 +397,63 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
             await mediaRepository.save(media);
           })
           .catch(async () => {
-            try {
-              const requestRepository = getRepository(MediaRequest);
+            const requestRepository = getRepository(MediaRequest);
 
-              if (entity.status !== MediaRequestStatus.FAILED) {
-                entity.status = MediaRequestStatus.FAILED;
+            if (!autoRetriedIds.has(entity.id)) {
+              autoRetriedIds.add(entity.id);
+              logger.warn(
+                'Something went wrong sending movie request to Radarr, retrying once',
+                {
+                  label: 'Media Request',
+                  requestId: entity.id,
+                  mediaId: entity.media.id,
+                }
+              );
+              try {
+                entity.status = MediaRequestStatus.APPROVED;
                 await requestRepository.save(entity);
+              } catch (retryError) {
+                logger.error('Failed to schedule movie request retry', {
+                  label: 'Media Request',
+                  requestId: entity.id,
+                  errorMessage:
+                    retryError instanceof Error
+                      ? retryError.message
+                      : String(retryError),
+                });
               }
-            } catch (saveError) {
-              logger.error('Failed to mark request as FAILED', {
-                label: 'Media Request',
-                requestId: entity.id,
-                errorMessage:
-                  saveError instanceof Error
-                    ? saveError.message
-                    : String(saveError),
-              });
+            } else {
+              autoRetriedIds.delete(entity.id);
+              try {
+                if (entity.status !== MediaRequestStatus.FAILED) {
+                  entity.status = MediaRequestStatus.FAILED;
+                  await requestRepository.save(entity);
+                }
+              } catch (saveError) {
+                logger.error('Failed to mark request as FAILED', {
+                  label: 'Media Request',
+                  requestId: entity.id,
+                  errorMessage:
+                    saveError instanceof Error
+                      ? saveError.message
+                      : String(saveError),
+                });
+              }
+              logger.warn(
+                'Something went wrong sending movie request to Radarr after retry, marking status as FAILED',
+                {
+                  label: 'Media Request',
+                  requestId: entity.id,
+                  mediaId: entity.media.id,
+                  radarrMovieOptions,
+                }
+              );
+              MediaRequest.sendNotification(
+                entity,
+                media,
+                Notification.MEDIA_FAILED
+              );
             }
-
-            logger.warn(
-              'Something went wrong sending movie request to Radarr, marking status as FAILED',
-              {
-                label: 'Media Request',
-                requestId: entity.id,
-                mediaId: entity.media.id,
-                radarrMovieOptions,
-              }
-            );
-
-            MediaRequest.sendNotification(
-              entity,
-              media,
-              Notification.MEDIA_FAILED
-            );
           })
           .finally(() => {
             radarr.clearCache({
@@ -451,24 +476,40 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
         });
 
         if (media) {
-          entity.status = MediaRequestStatus.FAILED;
-          await requestRepository.save(entity);
+          if (!autoRetriedIds.has(entity.id)) {
+            autoRetriedIds.add(entity.id);
+            logger.warn(
+              'Failed to send movie request to Radarr due to connection or configuration error, retrying once',
+              {
+                label: 'Media Request',
+                requestId: entity.id,
+                mediaId: entity.media.id,
+                errorMessage: e.message,
+              }
+            );
+            entity.status = MediaRequestStatus.APPROVED;
+            await requestRepository.save(entity);
+          } else {
+            autoRetriedIds.delete(entity.id);
+            entity.status = MediaRequestStatus.FAILED;
+            await requestRepository.save(entity);
 
-          logger.warn(
-            'Failed to send movie request to Radarr due to connection or configuration error, marking status as FAILED',
-            {
-              label: 'Media Request',
-              requestId: entity.id,
-              mediaId: entity.media.id,
-              errorMessage: e.message,
-            }
-          );
+            logger.warn(
+              'Failed to send movie request to Radarr after retry, marking status as FAILED',
+              {
+                label: 'Media Request',
+                requestId: entity.id,
+                mediaId: entity.media.id,
+                errorMessage: e.message,
+              }
+            );
 
-          MediaRequest.sendNotification(
-            entity,
-            media,
-            Notification.MEDIA_FAILED
-          );
+            MediaRequest.sendNotification(
+              entity,
+              media,
+              Notification.MEDIA_FAILED
+            );
+          }
         }
       }
     }
@@ -738,39 +779,63 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
             await mediaRepository.save(media);
           })
           .catch(async () => {
-            try {
-              const requestRepository = getRepository(MediaRequest);
+            const requestRepository = getRepository(MediaRequest);
 
-              if (entity.status !== MediaRequestStatus.FAILED) {
-                entity.status = MediaRequestStatus.FAILED;
+            if (!autoRetriedIds.has(entity.id)) {
+              autoRetriedIds.add(entity.id);
+              logger.warn(
+                'Something went wrong sending series request to Sonarr, retrying once',
+                {
+                  label: 'Media Request',
+                  requestId: entity.id,
+                  mediaId: entity.media.id,
+                }
+              );
+              try {
+                entity.status = MediaRequestStatus.APPROVED;
                 await requestRepository.save(entity);
+              } catch (retryError) {
+                logger.error('Failed to schedule series request retry', {
+                  label: 'Media Request',
+                  requestId: entity.id,
+                  errorMessage:
+                    retryError instanceof Error
+                      ? retryError.message
+                      : String(retryError),
+                });
               }
-            } catch (saveError) {
-              logger.error('Failed to mark request as FAILED', {
-                label: 'Media Request',
-                requestId: entity.id,
-                errorMessage:
-                  saveError instanceof Error
-                    ? saveError.message
-                    : String(saveError),
-              });
+            } else {
+              autoRetriedIds.delete(entity.id);
+              try {
+                if (entity.status !== MediaRequestStatus.FAILED) {
+                  entity.status = MediaRequestStatus.FAILED;
+                  await requestRepository.save(entity);
+                }
+              } catch (saveError) {
+                logger.error('Failed to mark request as FAILED', {
+                  label: 'Media Request',
+                  requestId: entity.id,
+                  errorMessage:
+                    saveError instanceof Error
+                      ? saveError.message
+                      : String(saveError),
+                });
+              }
+              logger.warn(
+                'Something went wrong sending series request to Sonarr after retry, marking status as FAILED',
+                {
+                  label: 'Media Request',
+                  requestId: entity.id,
+                  mediaId: entity.media.id,
+                  sonarrSeriesOptions,
+                }
+              );
+              MediaRequest.sendNotification(
+                entity,
+                media,
+                Notification.MEDIA_FAILED
+              );
             }
-
-            logger.warn(
-              'Something went wrong sending series request to Sonarr, marking status as FAILED',
-              {
-                label: 'Media Request',
-                requestId: entity.id,
-                mediaId: entity.media.id,
-                sonarrSeriesOptions,
-              }
-            );
-
-            MediaRequest.sendNotification(
-              entity,
-              media,
-              Notification.MEDIA_FAILED
-            );
           })
           .finally(() => {
             sonarr.clearCache({
@@ -794,24 +859,40 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
         });
 
         if (media) {
-          entity.status = MediaRequestStatus.FAILED;
-          await requestRepository.save(entity);
+          if (!autoRetriedIds.has(entity.id)) {
+            autoRetriedIds.add(entity.id);
+            logger.warn(
+              'Failed to send series request to Sonarr due to connection or configuration error, retrying once',
+              {
+                label: 'Media Request',
+                requestId: entity.id,
+                mediaId: entity.media.id,
+                errorMessage: e.message,
+              }
+            );
+            entity.status = MediaRequestStatus.APPROVED;
+            await requestRepository.save(entity);
+          } else {
+            autoRetriedIds.delete(entity.id);
+            entity.status = MediaRequestStatus.FAILED;
+            await requestRepository.save(entity);
 
-          logger.warn(
-            'Failed to send series request to Sonarr due to connection or configuration error, marking status as FAILED',
-            {
-              label: 'Media Request',
-              requestId: entity.id,
-              mediaId: entity.media.id,
-              errorMessage: e.message,
-            }
-          );
+            logger.warn(
+              'Failed to send series request to Sonarr after retry, marking status as FAILED',
+              {
+                label: 'Media Request',
+                requestId: entity.id,
+                mediaId: entity.media.id,
+                errorMessage: e.message,
+              }
+            );
 
-          MediaRequest.sendNotification(
-            entity,
-            media,
-            Notification.MEDIA_FAILED
-          );
+            MediaRequest.sendNotification(
+              entity,
+              media,
+              Notification.MEDIA_FAILED
+            );
+          }
         }
       }
     }
